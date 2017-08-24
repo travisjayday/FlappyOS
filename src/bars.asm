@@ -1,5 +1,62 @@
 ; 
 ; Description:
+; This procedure moves bars around on screen. It checks if bars are too far,
+; and if bar is about to go ofscreen, it calls rotate_damage_offsets to 
+; quickly switch the damage offsets of the bars, thus creating the illusion
+; of continuous motion
+; 
+handle_barspawn:
+	; handles bar movement
+	sub	word [bar_x_offset], bar_speed	; moves bar lefts
+
+	cmp	word [bar_x_offset], -107	; check if bar is out of screen
+	
+	jge	GLOBAL_RET		; all bars are in screen, no bars are being split
+	mov	word [bar_x_offset], 0	
+	
+	; first bar just touched the end of screen on left
+	call 	rotate_damage_offsets	; rotates damage offsets to accomodate for setting offset to 0
+	ret
+
+; 
+; Description: 
+; Updates Damage offsets for all 3 bars. Bars only move 107 px, 
+; so to trick continuous motion, damage offsets must be swapped 
+; from right to left. This is what the function does. In addition,
+; it generates a random offset for bar 0 (right-most) bar. Also increments
+; player's score (bars_passed)
+; 
+rotate_damage_offsets:
+	; dmg offset 0  goes to   dmg offset 2
+	; dmg offset 2  goes to   dmg offset 1 
+	; dmg offset 1  goes to   hell
+	; dmg offset 0  gets      random num
+
+	mov	al, [damage_offset]
+	mov	cl, [damage_offset+2]
+
+	mov	[damage_offset+2], al
+	mov	[damage_offset+1], cl
+
+	; Generate Pseudo random number for next bar
+	mov	ah, 0x0			; select get bios time
+	int 	0x1A			; call bios time interrupt. current ticks store in cx:dx
+	mov	ax, dx			; move least significant ticks into ax
+	mul 	ax			; square ax
+	xor	ah, ah			; zero upper part
+	mov	dl, 0x5			; prepare to divide al by 5
+	div     dl			; divide al by 5
+	add	al, 0xA			; add  y_offset (10px)
+	
+	mov	[damage_offset], al	; random numebr into next offset
+	inc	byte [bars_passed]	; keep track of score
+
+	ret
+
+
+
+; 
+; Description:
 ; Draws the enemy bars from left to right, one by one, line for line.
 ; A maximum of 3 bars are on the screen at any point in time
 ; The black side borders hide the bars from going too far off screen and reapearing at the other side

@@ -37,4 +37,18 @@ draw_background:
 	
 	ret				; return from "draw_background" procedure
 
+; Description:
+; Changes the color-scheme to black/white by loading appropirate
+; colors into their respective memory locations
+; 
+setup_blackwhite:
+	mov	byte [color_dmgzone], 0x0F
+	mov	byte [color_bar], 0x00
+	mov	byte [color_beak], 0x00
+	mov	word [color_back], 0x0F0F
+	mov	byte [color_player], 0x00
+	mov	word [color_floor], 0x0000
+	
+	ret
+
 

@@ -14,14 +14,15 @@
 %define buffer_addr		0x1000	; start of offscrean buffer
 
 ; BARS
-%define damage_bar_height	60
+%define damage_bar_height	60	; the height of "space" between bars
+%define bar_speed		0x01	; speed that bars travel to the left
 
 ; BACKGROUND
-%define floor_height		36	; floor is 35 px high	
+%define floor_height		36	; floor is 36 px high	
 
 ; TEXT
-%define font_s 			0x03
-%define color_fnt 		0x0F
+%define font_s 			0x03	; the size of a side of a virtual font block
+%define color_fnt 		0x0F	; color of the font
 
 
 [bits 16]
@@ -30,49 +31,53 @@
 
 section .text
 start:
-	xor	ax, ax
+	xor	ax, ax			; temp to move into ds
 	mov	ds, ax			; zero segment to access vars defined in ;Data secition
 
 	; Setup VGA mode and memory buffers
-	mov	ax, 0x13		; VGA 16bit colors 320x200 mode
+	mov	ax, 0x13		; select VGA 16bit colors 320x200 mode
 	int 	0x10			; call video update bios
 	mov	ax, 0xA000		; Video memory startaddr
 	mov	es, ax			; es = Real buffer video segment into segment register (for segment:offset format)
 	mov	ax, buffer_addr		; temp storage of virtual buffer addr
-	mov	gs, ax			; gs = Virtual buffer segment stored in GS
+	mov	gs, ax			; gs = Virtual buffer segment stored in GS (write to gs for buffering) 
 
-	test	dl, dl			; if dl == 0, black and white is selected
+	test	dl, dl			; if dl == 0, black and white was selected in the bootloader
 	jne	gameloop		; if not, start game
-	call 	setup_blackwhite	; else setup black/ white colors
+	call 	setup_blackwhite	; else setup black/ white colors (found in src/background.asm)
 
 
    gameloop:
 	; Handle keyboard input to set y_velociity if jumping
-   	call 	handle_input
+   	call 	handle_input		; checks if key was pressed, then jumps player. If 'P' was pressed, pauses game
+					; (found in src/keyboard.asm)
   
 	; Check if game is running (if gamestate == 0)
 	cmp	byte [game_state], 0x01	; if gamestate == 1, game is paused
 	je	game_paused		; if it's paused, skip all physics, moving bars, collision, etc
 	
-	call 	update_physics
-	call 	handle_barspawn
+	; Process Game Logic
+	call 	update_physics		; moves playeroffset down (bec of gravity); also decrements velocity bec of friction
+	call	check_collision		; if player is inside bar range, check bar collision, if collided, calls lost_game;
+					; (found in src/physics.asm) 
+	call 	handle_barspawn		; moves bars on screen (subs bar_x_offset), checks if bar is out of screen
+					; if it is, calls "rotate_damage_offsets" (found in src/bars.asm)
+   game_paused:				
 
-   game_paused:
-
+	; Draw Graphics to Buffer
 	call 	clear_buffer		; prepare to draw, fills screen with background color
-	call 	draw_bars		; draws bars
-	call 	draw_player		; draw player
-	call	draw_background		; draws floor and black bars
+	call 	draw_bars		; draws bars to buffer
+	call 	draw_player		; draws player to buffer
+	call	draw_background		; draws floor and black bars to buffer
 	
 	mov	di, title_string	; di holds pointer to string start
 	mov	dx, 50			; dx holds space start x offset 
 	mov	si, 175			; si holds y_offset 
-	call 	draw_string		; draws the "Flappy-OS" title 
+	call 	draw_string		; draws the "Flappy-OS" title to buffer
 
 	mov	dx, 245			; x offset of digit 1, y_offset is same from last drawcall	
-	call 	draw_score		; draws the score on screen
+	call 	draw_score		; draws the score to buffer
 	
-	call	check_collision		; if player is inside bar range, check bar collision
 	
    	; WAIT (sleep) for a little bit
 	mov	ax, 0x8600		; specify for int 0x15 WAIT interupt
@@ -80,139 +85,23 @@ start:
 	mov	dx, 0x3240;3240		; low word of wait time	
 	int 	0x15			; waits for cx:dx 1,000,000ths of a second
    
-	call 	switch_buffers		; move drawing buffer to vram
+	; apply all graphical changes
+	call 	switch_buffers		; moves drawing buffer to vram
 	jmp 	gameloop	
 
-
-; jumped to when a function is forced to exit prematurely
-GLOBAL_RET: 
-	ret
-
-
-%include "src/bars.asm"
-%include "src/background.asm"
-%include "src/player.asm"
-%include "src/buffers.asm"
-%include "src/font_text.asm"
-
-handle_barspawn:
-	; handles bar spawning
-	sub	word [bar_x_offset], 0x01
-
-	cmp	word [bar_x_offset], -107
-	
-	jne	GLOBAL_RET		; all bars are in screen, no bars are being split
-	mov	word [bar_x_offset], 0	
-	
-	; first bar just touched the end of screen on left
-	call 	rotate_damage_offsets	; rotates damage offsets to accomodate for setting offset to 0
-	ret
-
-update_physics:
-	; always add constant downward velocity due to gravity	
-	add 	word [y_offset], 0x03	; downward velocity = 3
-
-	cmp	word [y_velocity], 0x0	; check if jumping (jumping if velocity > 0) 
-	je 	GLOBAL_RET		; if it's zero, skip decreasing velocity
-
-   	; Jumping currently. In a jump, therefore must decrease velocity bec of friction	
-	mov	cx, [y_velocity]	; use cx as temp for storing current velocity
-	sub	[y_offset], cx		; subtract current velocity from y_offset
-   	
-	; vel_friction_cnt is used as a counter to smooth the subtraction of velocity from y_offset. 
-	; The greater it is, the less frequent velocity is subtracted form y_offset
-	
-	dec	byte [vel_friction_cnt]	; decreement velocity_friction_cnt 
-	jne	GLOBAL_RET		; if velocity_friction_counter is not zero, skip
-   	
-	; decrementing velocity and subtracting velocity from y_offset
-	sub	[y_velocity], word 0x1
-	mov	[vel_friction_cnt], byte friction
-	
-	ret
-
-
-handle_input:
-	; Check if key is in buffer
-	mov	ah, 0x01		; peak if key is present in keyboard buffer, if not ax is 0; else it's keycode
-	int	0x16			; calls peeking if new key in keyboard buffer
-	jz	GLOBAL_RET		; if ax is zero, skip handling input bec no key pressed
-		
-	cmp	al, 'P'			; compare with 'P'
-	je	pause_pressed
-	cmp	al, 'p'
-	je	pause_pressed	
-	
-	cmp	byte [vel_friction_cnt], friction - 2	; only jump if last jump is almost finished
-	jle	GLOBAL_RET
-
-
-	call 	clear_keyb		; clears the keyboard buffer to accomodate for the pressed key  
-
-	mov	byte [game_state], 0x00	; set game running
-	mov	[y_velocity], word jmp_vel	; start jump velocity
-
-	ret
-
-   pause_pressed:
-	call 	clear_keyb
-	cmp	byte [game_state], 0x00
-	je	pause_g
-	mov	byte [game_state], 0x00
-	ret
-   pause_g: 
-	mov	byte [game_state], 0x01
-	ret
-
-
 ; 
 ; Description: 
-; Checks if player is colliding with floor or sky, then evaluates 
-; if player is inside a bar area. If player is inside a bar area 
-; (ie the 35 px widh of a bar), then ial	
-; t checks if player is insi
-; the danger zone of the bar. If it is, it jumps to game_lost:
-; 
-check_collision:
-	; Evaluate if player is colliding with floor or sky
-	cmp	word [y_offset], yres - floor_height - p_width +1	; check if player collides with floor
-	jge	lost_game			; if so, lost game
-	
-	cmp	word [y_offset], -p_width * 10	; check if player is too high
-	jle 	lost_game		; because negative numbers are greater than positive numbers
-	
-	; Check if should check bar collision
-	cmp	byte [bars_passed], 2	; if not passed first 3 bars, it's ok if collision
-	jle	GLOBAL_RET		; just return if game hasn't started yet
-
-	; is player in a bar area? 
-	cmp	word [bar_x_offset], -22; less than if player is inside bar area
-	jge	GLOBAL_RET		; if greater, player is not in bar area
-
-	cmp	word [bar_x_offset], -72; bar is to the left of player
-	jle	GLOBAL_RET		; if less than, player is not in bar area
-	
-	; Check bar collision
-	xor	ax, ax			
-	mov	al, [damage_offset+1]	; use al as temp for damage offset start
-	cmp	[y_offset], ax		; check top bounds
-	
-	jle	lost_game		; if player y < top bar y --> collision
-
-	add	ax, damage_bar_height - p_width +2; check bottom bounds
-	cmp	[y_offset], ax		;
-	jge	lost_game		; if player y > bottom bar - player width --> collision
-
-	ret
-; 
-; Description: 
+; Called when player collides with something. This ends the game by moving black pixels
+; to vram from top to bottom to screen, then writing "OVER" on screen together with 
+; the player's score. On keypress, procedure jumps to 0x7C00, thus restarting the 
+; bootloader.
 ;
 lost_game:
-	xor 	si, si			; set pixel counter to 0 
-
 	mov	ax, 0x8600		; specify for int 0x15 WAIT interupt
-	xor	cx, cx			; high word of wait time 
+	xor	cx, cx			; high word of wait time = 0
 	mov	dx, 0x002f		; low word of wait time		
+
+	xor 	si, si			; set pixel counter to 0 
 
    blacking_vram:
 	int 	0x15			; waits for cx:dx 1,000,000ths of a second
@@ -222,7 +111,7 @@ lost_game:
 	cmp	si, 64000		; check if last pixel reached
 	jne	blacking_vram		; if not, jump to next pixel
 
-	mov	word [color_back], 0x0000 ; set virtual buffer background to black
+	mov	word [color_back], 0x00 ; set virtual buffer background to black
 	call 	clear_buffer		; fill the virtual buffer with black
 	
 	; write "OVER" string to virtual buffer
@@ -231,14 +120,14 @@ lost_game:
 	mov	si, 85			; si holds y_offset
 	call 	draw_string		; write over string to virtual buffer
 
-	mov	dx, 165 - 30
-	mov	si, 110
-	call	draw_score
+	mov	dx, 165 - 30		; dx holds x offset
+	mov	si, 110			; si holds y_offset
+	call	draw_score		; write score to vbuffer
 	
-	call	switch_buffers
+	call	switch_buffers		; move vbuffer to vram 
 
    	; WAIT (sleep) for a second
-	mov	ax, 0x8600
+	mov	ax, 0x8600		; specify wait call
 	mov	cx, 0x000F		; high word of wait time 
 	mov	dx, 0x3240		; low word of wait time	
 	int 	0x15			; waits for cx:dx 1,000,000ths of a second
@@ -248,79 +137,20 @@ lost_game:
 	int	0x16			; wait until keypress
 		
 	jmp 	0x7C00			; upon keypress, jump back to MBR, (run code in bootloader.asm)
-		
+
+ ; jumped to when a function is forced to exit prematurely
+GLOBAL_RET: 
 	ret
 
-;
-; Description:
-; Clears keystroke buffer directly ( 0040:001A := 0040:001C )
-;
-clear_keyb: 		  		
-	push 	ds			; save segment registers
-	push 	es			; needed for movsw
-
- 	mov 	bx, 0x40		; temp for storing 0x40 in es
- 	mov 	es, bx			; es = 0x40
- 	mov 	ds, bx			; ds = 0x40 (also store 0x40 in ds)
-	mov 	di, 0x1A		; 
- 	mov 	si, 0x1C
- 	movsw				; move word from ds:si to es:di
-	
-	pop es
-	pop ds
-	ret
-
-; 
-; Description:
-; Changes the color-scheme to black/white by loading appropirate
-; colors into their respective memory locations
-; 
-setup_blackwhite:
-	mov	byte [color_dmgzone], 0x0F
-	mov	byte [color_bar], 0x00
-	mov	byte [color_beak], 0x00
-	mov	word [color_back], 0x0F0F
-	mov	byte [color_player], 0x00
-	mov	word [color_floor], 0x0000
-	
-	ret
-; 
-; Description: 
-; Updates Damage offsets for all 3 bars. Bars only move 107 px, 
-; so to trick continuous motion, damage offsets must be swapped 
-; from right to left. This is what the function does. In addition,
-; it generates a random offset for bar 0 (right-most) bar. 
-; 
-rotate_damage_offsets:
-	; dmg offset 0  goes to   dmg offset 2
-	; dmg offset 2  goes to   dmg offset 1 
-	; dmg offset 1  goes to   hell
-	; dmg offset 0  gets      random num
-
-	mov	al, [damage_offset]
-	mov	cl, [damage_offset+2]
-
-	mov	[damage_offset+2], al
-	mov	[damage_offset+1], cl
-
-	; Generate Pseudo random number for next bar
-	mov	ah, 0x0			; select get bios time
-	int 	0x1A			; call bios time interrupt. current ticks store in cx:dx
-	mov	ax, dx			; move least significant ticks into ax
-	mul 	ax			; square ax
-	xor	ah, ah			; zero upper part
-	mov	dl, 0x5			; prepare to divide al by 5
-	div     dl			; divide al by 5
-	add	al, 0xA			; add  y_offset (10px)
-	
-	mov	[damage_offset], al	; random numebr into next offset
-
-	inc	byte [bars_passed]
-
-	ret
-
-
-;DATA
+%include "src/bars.asm"
+%include "src/background.asm"
+%include "src/player.asm"
+%include "src/buffers.asm"
+%include "src/font_text.asm"
+%include "src/physics.asm"
+%include "src/keyboard.asm"
+ 
+; DATA
 game_state:				; if 0x0, no gravity effects bird
 	db	0x01			; set to 1 after first keypress
 	
@@ -364,7 +194,7 @@ color_floor:				; color of the floor
 color_player:				; color of the player
 	db	0x0E			; yellow	
 
-; FILLER -- 3 sectors
+; FILLER -- 3 sectors; total game size is 4 sectors (2KiB)
 times 1536 - ($-$$) db 0
 
 
