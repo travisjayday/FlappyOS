@@ -20,4 +20,4 @@ This has been an educational experience for me. If you have any questions about 
 A big <b>Thank You</b> to user flxbe for his asm-space-invaders game and the StackOverflow community for their help & reassurance.  
 
 
-(PS: Pressing 'P' in game, pauses the game)
+(Here's a secret: Pressing 'P' in game, pauses the game)
