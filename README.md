@@ -22,12 +22,12 @@ On boot, the bootloader reads sectors 1, 2 an 3 into memory (that's right, the g
 # Installation
 Pre-assembled binary images and iso's of the game are found in the build/ directory. These can either be used in a virtual environment such as VirtualBox or BOCHS. Running `make` in the main directory will assemble the source files and create a floppy.img in the build directory. It will also try to start the BOCHS emulator which should have been installed beforehand. 
 
-`make` has other options too:<br>
-  `make usb` assembles all files and attempts to write the image to /dev/sdb <b>WARNING: This may break your bootloader depending on your HDD setup!</b><br>
-  `make iso` assembles all files and creates a bootable iso images which can be used in VirtualBox or burned to a disk or USB<br>
-  `make image` only assembles a floppy disk image in the build directory<br>
+<u>`make` has other options too:</u><br>
+  - `make usb` assembles all files and attempts to write the image to /dev/sdb <b>This may brick your bootloader depending on your HDD setup!</b><br>
+  - `make iso` assembles all files and creates a bootable iso images which can be used in VirtualBox or burned to a disk or USB<br>
+  - `make image` only assembles a floppy disk image in the build directory<br>
   
-Read the Makefile for more information
+Read the Makefile for more information.
 
 <b>A word of warning: </b> If playing in an emulator, delays and game timings may be too fast or too slow (as explained in <a href="https://stackoverflow.com/questions/45845736/emulated-environments-hardware-clock-ticking-a-lot-faster-than-18-2-times-per?noredirect=1#comment78657194_45845736">this</a> StackOverflow question). If you're using BOCHS, tweak the ips=xxx label in the bochsrc.txt file in the build/ directory or the actual timings of cx:dx in the source file flappy.asm.
 
