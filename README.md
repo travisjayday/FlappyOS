@@ -3,9 +3,13 @@ A portable, bootable flappy bird game written in assembly.
 
 Using BIOS interrupts for input and the linear VGA 320x200 16 color mode for output, FlappyOS recreates the popular mobile game Flappy Bird with even more "Retro" graphics than the original! 
 
+# Screenshots
+
 ![Color Screenshot](/screenshots/flappyOS_gameplay1.bmp?raw=true "Color Gameplay")
 
+
 ![Black White Screenshot](/screenshots/flappyOS_bw.bmp?raw=true "Black/White")
+
 
 ![Over Screenshot](/screenshots/flappyOS_over.bmp?raw=true "VGA Text over screen")
 
