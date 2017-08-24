@@ -3,7 +3,8 @@
 # creates floppy.img and starts bochs for debugging
 debug: image
 	rm loader.bin flappy.bin
-	bochs -q -rc debug.rc
+	mv floppy.img build/
+	cd build && bochs -q -rc debug.rc
 
 # only creates floppy.img used for other sections
 image: flappy.asm bootloader.asm clean
@@ -24,9 +25,9 @@ usb:	image
 
 # creates a burnable ISO image 
 iso:	image
-	genisoimage -quiet -V 'FLAPPYOS' -input-charset iso8859-1 -o iso_flappy.iso -b floppy.img -hide floppy.img floppy.img
+	genisoimage -quiet -V 'FLAPPYOS' -input-charset iso8859-1 -o build/iso_flappy.iso -b floppy.img -hide floppy.img floppy.img
 	rm flappy.bin loader.bin floppy.img
 
 # removes all possible files created by make
 clean:
-	rm -f loader.bin flappy.bin floppy.img iso_flappy.iso
+	rm -f loader.bin flappy.bin floppy.img bootable_flappy.iso
