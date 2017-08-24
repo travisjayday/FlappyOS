@@ -1,0 +1,12 @@
+megs: 32
+romimage: file=/usr/share/bochs/BIOS-bochs-latest, address=0xfffe0000
+vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
+floppya: 1_44=floppy.img, status=inserted
+boot: a
+log: bochsout.txt
+mouse: enabled=0
+#clock: sync=realtime, time0=local, rtc_sync=0
+#sound: driver=default#, waveout=/dev/console
+#speaker: enabled=1, mode=sound
+cpu: count=1 ips=00005000 
+display_library: x#, options="gui_debug" #add gui_debug for debuggin
