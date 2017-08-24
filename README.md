@@ -23,7 +23,7 @@ On boot, the bootloader reads sectors 1, 2 an 3 into memory (that's right, the g
 Pre-assembled binary images and iso's of the game are found in the build/ directory. These can either be used in a virtual environment such as VirtualBox or BOCHS. Running `make` in the main directory will assemble the source files and create a floppy.img in the build directory. It will also try to start the BOCHS emulator which should have been installed beforehand. 
 
 `make` has other options too:
-  `make usb` assembles all files and attempts to write the image to /dev/sdb <b>WARNING: This may break your bootloader depending on your HDD setup!
+  `make usb` assembles all files and attempts to write the image to /dev/sdb <b>WARNING: This may break your bootloader depending on your HDD setup!</b>
   `make iso` assembles all files and creates a bootable iso images which can be used in VirtualBox or burned to a disk or USB
   `make image` only assembles a floppy disk image in the build directory
   
