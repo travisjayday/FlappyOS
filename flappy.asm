@@ -28,7 +28,6 @@
 [bits 16]
 [org 0x7E00]
 
-
 section .text
 start:
 	xor	ax, ax			; temp to move into ds
@@ -42,7 +41,8 @@ start:
 	mov	ax, buffer_addr		; temp storage of virtual buffer addr
 	mov	gs, ax			; gs = Virtual buffer segment stored in GS (write to gs for buffering) 
 
-	test	dl, dl			; if dl == 0, black and white was selected in the bootloader
+	mov	[drive_n], dl
+	test	dh, dh			; if dl == 0, black and white was selected in the bootloader
 	jne	gameloop		; if not, start game
 	call 	setup_blackwhite	; else setup black/ white colors (found in src/background.asm)
 
@@ -79,10 +79,10 @@ start:
 	call 	draw_score		; draws the score to buffer
 	
 	
-   	; WAIT (sleep) for a little bit
+   	; DELAY/WAIT (sleep) for a little bit
 	mov	ax, 0x8600		; specify for int 0x15 WAIT interupt
 	mov	cx, 0x0000		; high word of wait time 
-	mov	dx, 0x3240;3240		; low word of wait time	
+	mov	dx, 0x3E80;3240		; low word of wait time 16ms	
 	int 	0x15			; waits for cx:dx 1,000,000ths of a second
    
 	; apply all graphical changes
@@ -97,15 +97,21 @@ start:
 ; bootloader.
 ;
 lost_game:
+	; setup wait for 1,000,000 / 200 microseconds such that the total black population time is 1 second
 	mov	ax, 0x8600		; specify for int 0x15 WAIT interupt
 	xor	cx, cx			; high word of wait time = 0
-	mov	dx, 0x002f		; low word of wait time		
+	mov	dx, 0x1388		; low word of wait time
 
 	xor 	si, si			; set pixel counter to 0 
+	xor	bx, bx
 
    blacking_vram:
+	inc 	bx
+	cmp	bx, 320
+	jne	skip_wait
 	int 	0x15			; waits for cx:dx 1,000,000ths of a second
-   
+	xor	bx, bx
+  skip_wait: 
 	mov 	byte [es:si], 0x00	; move black into pixel
 	inc 	si			; go to next pixel
 	cmp	si, 64000		; check if last pixel reached
@@ -129,13 +135,14 @@ lost_game:
    	; WAIT (sleep) for a second
 	mov	ax, 0x8600		; specify wait call
 	mov	cx, 0x000F		; high word of wait time 
-	mov	dx, 0x3240		; low word of wait time	
+	mov	dx, 0x4240		; low word of wait time	 1 second
 	int 	0x15			; waits for cx:dx 1,000,000ths of a second
 
 	call 	clear_keyb		; clear any previous input
 	xor	ax, ax			; select read key
 	int	0x16			; wait until keypress
 		
+	mov	dl, [drive_n]
 	jmp 	0x7C00			; upon keypress, jump back to MBR, (run code in bootloader.asm)
 
  ; jumped to when a function is forced to exit prematurely
@@ -151,6 +158,9 @@ GLOBAL_RET:
 %include "src/keyboard.asm"
  
 ; DATA
+drive_n: 
+	db 	0x00
+
 game_state:				; if 0x0, no gravity effects bird
 	db	0x01			; set to 1 after first keypress
 	

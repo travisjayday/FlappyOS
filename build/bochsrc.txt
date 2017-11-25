@@ -1,12 +1,14 @@
 megs: 32
+speaker: enabled=1, mode=system
 romimage: file=/usr/share/bochs/BIOS-bochs-latest, address=0xfffe0000
-vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
+#vgaromimage: file=/usr/share/bochs/VGABIOS-lgpl-latest
+vgaromimage: file=/usr/share/bochs/VGABIOS-elpin-2.40
 floppya: 1_44=floppy.img, status=inserted
 boot: a
 log: bochsout.txt
 mouse: enabled=0
-#clock: sync=realtime, time0=local, rtc_sync=0
-#sound: driver=default#, waveout=/dev/console
-#speaker: enabled=1, mode=sound
-cpu: count=1 ips=00005000 
-display_library: x#, options="gui_debug" #add gui_debug for debuggin
+
+#cpu: count=1 ips=00005000 
+clock: sync=realtime, time0=utc, rtc_sync=1
+#clock: sync=slowdown#//, time0=local
+display_library: x , options="gui_debug" #add gui_debug for debuggin

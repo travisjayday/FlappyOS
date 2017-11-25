@@ -2,7 +2,7 @@
 
 # creates floppy.img and starts bochs for debugging
 debug: image
-	rm loader.bin flappy.bin
+	#rm loader.bin flappy.bin
 	mv floppy.img build/
 	cd build && bochs -q -rc debug.rc
 
@@ -12,7 +12,7 @@ image: flappy.asm bootloader.asm clean
 	nasm -f bin bootloader.asm -o loader.bin
 	dd if=/dev/zero of=floppy.img bs=1024 count=1440
 	dd if=loader.bin of=floppy.img bs=512 seek=0 count=1 conv=notrunc
-	dd if=flappy.bin of=floppy.img bs=512 seek=1 count=3 conv=notrunc
+	dd if=flappy.bin of=floppy.img bs=512 seek=1 conv=notrunc
 
 # writes OS to USB automatically at /dev/sdb 
 usb:	image

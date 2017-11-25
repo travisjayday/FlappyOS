@@ -1,75 +1,80 @@
-[bits 16]
-[org 0x7c00]
+bits 16
+org 0x7c00
 
-section .text
+;section .text
 boot:
 	jmp start
-	times 3-($-$$) DB 0x90   ; Support 2 or 3 byte encoded JMPs before BPB.
+	nop
 
-    	; Dos 4.0 EBPB 1.44MB floppy
-    	OEMname:           db    "mkfs.fat"  ; mkfs.fat is what OEMname mkdosfs uses
-    	bytesPerSector:    dw    512
-    	sectPerCluster:    db    1
-    	reservedSectors:   dw    1
-    	numFAT:            db    2
-    	numRootDirEntries: dw    224
-    	numSectors:        dw    2880
-    	mediaType:         db    0xf0
-   	numFATsectors:     dw    9
-    	sectorsPerTrack:   dw    18
-    	numHeads:          dw    2
-    	numHiddenSectors:  dd    0
-    	numSectorsHuge:    dd    0
-    	driveNum:          db    0
-    	reserved:          db    0
-    	signature:         db    0x29
-    	volumeID:          dd    0x2d7e5a1a
-    	volumeLabel:       db    "NO NAME    "
-    	fileSysType:       db    "FAT12   "
+	OEMLabel		db "FLAPPYOS"	; Disk label
+	BytesPerSector		dw 512		; Bytes per sector
+	SectorsPerCluster	db 1		; Sectors per cluster
+	ReservedForBoot		dw 1		; Reserved sectors for boot record
+	NumberOfFats		db 2		; Number of copies of the FAT
+	RootDirEntries		dw 224		; Number of entries in root dir
+						; (224 * 32 = 7168 = 14 sectors to read)
+	LogicalSectors		dw 2880		; Number of logical sectors
+	MediumByte		db 0F0h		; Medium descriptor byte
+	SectorsPerFat		dw 9		; Sectors per FAT
+	SectorsPerTrack		dw 18		; Sectors per track (36/cylinder)
+	Sides			dw 2		; Number of sides/heads
+	HiddenSectors		dd 0		; Number of hidden sectors
+	LargeSectors		dd 0		; Number of LBA sectors
+	DriveNo			dw 0		; Drive No: 0
+	Signature		db 41		; Drive signature: 41 for floppy
+	VolumeID		dd 00000000h	; Volume ID: any number
+	VolumeLabel		db "FLAPPYOS   "; Volume Label: any 11 chars
+	FileSystem		db "FAT12   "	; File system type: don't change
 
+drive_n: db 0
 start:
 	; init segment registers
 	xor	ax, ax
 	mov	ds, ax
 	mov 	es, ax
 
+	cli				; Disable interrupts while changing stack
+	mov ss, ax
+	mov sp, 0x7C00			; Set up stack space below bootloader
+	sti				; Restore interrupts
+
+	; NOTE: A few early BIOSes are reported to improperly set DL
+	mov	[drive_n], dl
+	
+	mov	si, msg_found		; load str addr into si
+	call 	write_cstring		; write string 2 scrn
+	
+
 	; prepare to read sector into memory
-	mov 	si, 0x02	; maximum attempts - 1
-	mov	al, 0x03	; load 1 sector 
+	mov 	si, 0x04	; maximum attempts - 1
 	mov	bx, 0x7E00	; load after bootloader
 	mov	cx, 0x0002	; cylinder 0, sector 2
-	mov	dl, 0	   	; select boot drive
+	mov	dl, [drive_n]  	; select boot drive
 	xor	dh, dh		; head is 0
 
    read_sectors:	
-	mov	ah, 0x02	; select read sectors into memory
-	int 	0x13		; call read into memroy
-	jnc	read_succ	; if no carrying, then read succeeded
-	dec	si		; else, decrement attempts
-	jc	read_fail	; if si == 0, ran out of attempts, end
-	xor	ah, ah		; select reset disk system 
+	xor	ax, ax		; select reset disk system 
 	int	0x13		; call disk service
-	jnc	read_sectors	; if not carried, didn't fail. retry
+
+	test	si, si
+	jz	read_fail	; if si < 0, ran out of attempts, end
+	dec	si		; else, decrement attempts
+
+	mov	ah, 0x02	; select read sectors into memory
+	mov	al, 0x03	; read 3 sectors
+
+	int 	0x13		; call read into memroy
+	jc 	read_sectors
    
-	; read failed
-   read_fail:
-	cli			; stop interrupts
-	hlt			; halt
-	jmp read_fail		; just to be safe to always hang
-	
    read_succ:
 	; INIT video textmode
-	mov	ah, 0x00
+	xor	ax, ax
 	int	0x10
- 
-	; write hello message
+
+ 	; write hello message
 	mov	si, msg_entry	; load str addr into si
 	call 	write_cstring	; write string 2 scrn
 	
-	xor	ah, ah		; select int 16, ah = 0, keyboard read
-	int 	0x16		; call read key 
-	call 	clear_screen	; clears scrn	
-
 	; print graphic selection prompt
 	mov	si, msg_graphic_prompt
 	call 	write_cstring
@@ -106,17 +111,17 @@ start:
 	dw 0xffff
 
    start_c_game:
-	mov	dl, 0x01
+	mov	dh, 0x01
 	jmp	start_game
    
    start_bw_game:
-	xor	dl, dl		; dl = 0, meaning that black/white is selected
+	xor	al, al		; al = 0, meaning that black/white is selected
    
    start_game:
-	jmp	0x7E00
+	mov	dl, [drive_n]	
+	jmp	0x0000:0x7E00
 
-
-
+%if 0
 ; 
 ; Description: 
 ; Scrolls the screen to clear screen
@@ -129,6 +134,7 @@ clear_screen:
 	int 	0x10
 	
 	ret
+%endif
 
 ; 
 ; Description: 
@@ -136,38 +142,88 @@ clear_screen:
 ; 
 ; Parameters: 
 ; si = string address
+;
+; Notes: 
+; Does NOT modify any registers except for si
 ; 
 write_cstring:
+	push 	ax
 	mov	ah, 0x0E	; select bios write char service 
    in_string:
 	mov	al, [si] 	; move char into al
-	inc	si		; inc str addr
-	test 	al, al		; check if al == 0
-	je	return_write_s	; if so, end of string reached, return
 	int	0x10		; else, write char 2 scrn
-	jmp write_cstring	; continue to next char
+	inc	si		; inc str addr
+	cmp 	byte [si], 0x00
+	jne	in_string	   
 
-   return_write_s
+	pop 	ax
 	ret
+; 
+; Description:
+; Called upon when a fatal disk read error occurs
+;
+read_fail:
+	mov 	si, msg_read_fail
+	call	write_cstring
+	hlt			; halt
+	jmp $
 
 ; DATA
+msg_found: 
+	db "Bootloader Found...", 0x00
+
+msg_read_fail: 
+	db "Error: Disk Read Failure", 0x00
+
 msg_entry:
 	db "Welcome to FlappyOS!", 0x0A, 0x0D, \
-	   "by Travis Ziegler", 0x0A, 0x0A, 0x0D, 0x00 \
+	   "by Travis Ziegler", 0x0A, 0x0A, 0x0D, 0x0 \
 
 msg_graphic_prompt: 
-	db "  -[C]olor", 0x0A, 0x0D, \
+	db "Main Menu:", 0x0A, 0x0D, \
+	   "  -[C]olor", 0x0A, 0x0D, \
 	   "  -[B]lack/white", 0x0A, 0x0D, \
 	   "  -[E]xit game", 0x0A, 0x0A, 0x0D, "Graphic Mode [C/B/E]? ", 0x00
-
-msg_readfail:
-	db "[ERROR] Failed to read sectors from boot device. Aborting...", 0x00
 
 msg_invalid_input:
 	db 0x0A, 0x0D, "Invalid input!", 0x00
 
-; Sector filler and Boot signature
-times 510 - ($-$$) db 0
+
+; MBR Partition table so that USB can be booted in HDD mode
+times 0x1b4 - ($-$$) db 0	; start of partition table
+
+; 0x1b4
+db "12345678", 0x0, 0x0		; 10 byte unique id
+
+; 0x1be 		; Partition 1 
+db 0x80			; boot indicator flag = on
+
+; start sector
+db 0			; starting head = 0
+db 0b00000001	; cyilinder = 0, sector = 1 (2 cylinder high bits, and sector. 00 000001 = high bits db 0x00)
+db 0			; 7-0 bits of cylinder (insgesamt 9 bits) 
+
+; filesystem type
+db 1			; filesystem type = fat12
+
+; end sector = 2880th sector? I doubt this matters much...
+db 1			; ending head = 1
+db 18			; cyilinder = 79, sector = 18 (2 cylinder high bits, and sector. 00 000001 = high bits db 0x00)
+db 79			; 7-0 bits of cylinder (insgesamt 9 bits) 
+
+dd 0			; 32 bit value of number of sectors between MBR and partition
+
+dd 2880			; 32 bit - total number of sectors in disk
+
+; 0x1ce			; Partition 2
+times 16 db 0
+
+; 0x1de			; Partition 3
+times 16 db 0
+
+; 0x1ee			; Parititon 4
+times 16 db 0
+
 dw 0xaa55
 
 
