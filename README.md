@@ -1,7 +1,7 @@
 # FlappyOS
 A portable, bootable flappy bird game written in assembly.
 
-Using BIOS interrupts for input and the linear VGA 320x200 16 color mode for output, FlappyOS recreates the popular mobile game Flappy Bird with even more "Retro" graphics than the original! 
+Using BIOS interrupts for input and the linear VGA 320x200 256bit color mode for output, FlappyOS recreates the popular mobile game Flappy Bird with even more "Retro" graphics than the original! 
 
 # Screenshots
 
@@ -14,16 +14,16 @@ Using BIOS interrupts for input and the linear VGA 320x200 16 color mode for out
 ![Over Screenshot](/screenshots/flappyOS_over.bmp?raw=true "VGA Text over screen")
 
 # Gamemodes
-As seen in the screenshots, FlappyOS has two modes: Color and Black/White. These modes can be selected on startup when the bootloader reads the game into memory. 
+As seen in the screenshots, FlappyOS has two modes: Color and Black/White. These modes can be selected on startup when the bootloader reads the game into memory. Additionally, custom VGA colors can be setup in the src/background.asm file. 
 
 # Process
 On boot, the bootloader reads sectors 1, 2 an 3 into memory (that's right, the game is 3 + 1 sectors, ie 2KiB large!), then prompts the user for a mode, either color, black/white, or exit. Exit reboots the PC. Once the player selects a mode, the game starts. When the player collides, the screen fills with black. After a keypress, the game jumps back to the MBR and re-runs the code in the bootloader.
 
 # Installation
-Pre-assembled binary images and iso's of the game are found in the build/ directory. These can either be used in a virtual environment such as VirtualBox or BOCHS. Running `make` in the main directory will assemble the source files and create a floppy.img in the build directory. It will also try to start the BOCHS emulator which should have been installed beforehand. 
+Pre-assembled binary images and iso's of the game are found in the build/ directory. These can either be used in a virtual environment such as VirtualBox or BOCHS or on real hardware that supports USB Floppy or USB Hard Drive emulation. Running `make` in the main directory will assemble the source files and create a floppy.img in the build directory. It will also try to start the BOCHS emulator (for debugging) which should have been installed beforehand. 
 
 <u>`make` has other options too:</u><br>
-  - `make usb` assembles all files and attempts to write the image to /dev/sdb <b>This may brick your bootloader depending on your HDD setup!</b><br>
+  - `make usb` assembles all files and attempts to write the image to /dev/sdb <b>This may brick your computer/bootloader depending on your HDD setup! Make sure you change /dev/sdb to your USB device</b><br>
   - `make iso` assembles all files and creates a bootable iso images which can be used in VirtualBox or burned to a disk or USB<br>
   - `make image` only assembles a floppy disk image in the build directory<br>
   
