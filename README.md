@@ -32,7 +32,7 @@ Read the Makefile for more information.
 <b>A word of warning: </b> If playing in an emulator, delays and game timings may be too fast or too slow (as explained in <a href="https://stackoverflow.com/questions/45845736/emulated-environments-hardware-clock-ticking-a-lot-faster-than-18-2-times-per?noredirect=1#comment78657194_45845736">this</a> StackOverflow question). If you're using BOCHS, tweak the ips=xxx label in the bochsrc.txt file in the build/ directory or the actual timings of cx:dx in the source file flappy.asm.
 
 # Additional Notes
-This has been an educational experience for me. If you have any questions about my code or the game, feel free to raise an issue.
+Learning about CPU architecture, the boot process, and BIOS has been painful at times but an overall fantastic: I learned a lot. If you have any questions about my code or the game, feel free to raise an issue.
 A big <b>Thank You</b> to user flxbe for his asm-space-invaders game and the StackOverflow community for their help & reassurance.  
 This has been quite the educational experience!
 
